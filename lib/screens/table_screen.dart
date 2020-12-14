@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:competicoes_futebol_tabelas/stores/tabela_store.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
@@ -12,64 +14,51 @@ class TableScreen extends StatefulWidget {
 }
 
 class _TableScreenState extends State<TableScreen> {
-  List _tabela;
-
-  getTable() async {
-    http.Response response = await http.get(
-      'http://api.football-data.org/v2/competitions/${widget.codigo}/standings',
-      headers: {'X-Auth-Token': 'e218d1641caa41a0977464529184054e'},
-    );
-    String body = response.body;
-    Map data = jsonDecode(body);
-    print(data);
-    List tabela = data['standings'][0]['table'];
-    setState(() {
-      _tabela = tabela;
-    });
-  }
+  TabelaStore _tabelaStore;
 
   @override
   void initState() {
-    getTable();
     super.initState();
+    _tabelaStore = TabelaStore();
+    _tabelaStore.getTabela(widget.codigo);
   }
 
   @override
   Widget build(BuildContext context) {
-    return _tabela == null
-        ? Container(
-            color: Colors.white,
-            child: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  const Color(0xFF01642E),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.competicao),
+        centerTitle: true,
+        backgroundColor: const Color(0xFF0C8F33),
+        elevation: 0,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF0C8F33),
+              const Color(0xFF01642E),
+            ],
+            begin: const FractionalOffset(0, 0),
+            end: const FractionalOffset(0, 1),
+            stops: [0, 1],
+            tileMode: TileMode.clamp,
+          ),
+        ),
+        child: Observer(
+          builder: (_) {
+            if (_tabelaStore.carregando) {
+              return Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.white,
+                  ),
                 ),
-              ),
-            ),
-          )
-        : Scaffold(
-            appBar: AppBar(
-              title: Text(widget.competicao),
-              centerTitle: true,
-              backgroundColor: const Color(0xFF0C8F33),
-              elevation: 0,
-            ),
-            body: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF0C8F33),
-                    const Color(0xFF01642E),
-                  ],
-                  begin: const FractionalOffset(0, 0),
-                  end: const FractionalOffset(0, 1),
-                  stops: [0, 1],
-                  tileMode: TileMode.clamp,
-                ),
-              ),
-              child: ListView(
-                physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics()),
+              );
+            } else {
+              return Column(
+                /*physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics()),*/
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -104,31 +93,31 @@ class _TableScreenState extends State<TableScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'PL',
+                                'PJ',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const Text(
-                                'W',
+                                'VIT',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const Text(
-                                'D',
+                                'E',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const Text(
-                                'L',
+                                'DER',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const Text(
-                                'GD',
+                                'SG',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -146,83 +135,105 @@ class _TableScreenState extends State<TableScreen> {
                     ),
                   ),
                   const SizedBox(
-                    height: 10,
+                    height: 5,
                   ),
-                  _buildTabela(),
-                ],
-              ),
-            ),
-          );
-  }
-
-  Widget _buildTabela() {
-    List<Widget> times = [];
-    for (var time in _tabela) {
-      times.add(
-        Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    time['position'].toString().length > 1
-                        ? Text(time['position'].toString() + ' - ')
-                        : Text(' ' + time['position'].toString() + ' - '),
-                    Row(
-                      children: [
-                        SvgPicture.network(
-                          time['team']['crestUrl'],
-                          height: 30,
-                          width: 30,
-                        ),
-                        time['team']['name'].toString().length > 11
-                            ? Text(
-                                time['team']['name']
-                                        .toString()
-                                        .substring(0, 11) +
-                                    '...',
-                              )
-                            : Text(
-                                time['team']['name'].toString(),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _tabelaStore.tabela.length,
+                      itemBuilder: (_, index) {
+                        return Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    _tabelaStore.tabela[index].posicao
+                                                .toString()
+                                                .length >
+                                            1
+                                        ? Text(
+                                            _tabelaStore.tabela[index].posicao
+                                                    .toString() +
+                                                ' - ',
+                                          )
+                                        : Text(
+                                            ' ' +
+                                                _tabelaStore
+                                                    .tabela[index].posicao
+                                                    .toString() +
+                                                ' - ',
+                                          ),
+                                    Row(
+                                      children: [
+                                        SvgPicture.network(
+                                          _tabelaStore
+                                              .tabela[index].time.imageUrl,
+                                          height: 30,
+                                          width: 30,
+                                        ),
+                                        _tabelaStore.tabela[index].time.nome
+                                                    .length >
+                                                13
+                                            ? Text(
+                                                _tabelaStore
+                                                        .tabela[index].time.nome
+                                                        .substring(0, 13) +
+                                                    '...',
+                                              )
+                                            : Text(
+                                                _tabelaStore
+                                                    .tabela[index].time.nome,
+                                              )
+                                      ],
+                                    )
+                                  ],
+                                ),
                               ),
-                      ],
+                              Expanded(
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _tabelaStore.tabela[index].jogosDisputados
+                                          .toString(),
+                                    ),
+                                    Text(
+                                      _tabelaStore.tabela[index].vitorias
+                                          .toString(),
+                                    ),
+                                    Text(
+                                      _tabelaStore.tabela[index].empates
+                                          .toString(),
+                                    ),
+                                    Text(
+                                      _tabelaStore.tabela[index].derrotas
+                                          .toString(),
+                                    ),
+                                    Text(
+                                      _tabelaStore.tabela[index].saldoGols
+                                          .toString(),
+                                    ),
+                                    Text(
+                                      _tabelaStore.tabela[index].pontos
+                                          .toString(),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      time['playedGames'].toString(),
-                    ),
-                    Text(
-                      time['won'].toString(),
-                    ),
-                    Text(
-                      time['draw'].toString(),
-                    ),
-                    Text(
-                      time['lost'].toString(),
-                    ),
-                    Text(
-                      time['goalDifference'].toString(),
-                    ),
-                    Text(
-                      time['points'].toString(),
-                    ),
-                  ],
-                ),
-              )
-            ],
-          ),
+                  )
+                ],
+              );
+            }
+          },
         ),
-      );
-    }
-    return Column(
-      children: times,
+      ),
     );
   }
 }
